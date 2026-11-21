@@ -61,7 +61,8 @@ Every intervention is shown to the candidate as a warning.
 ## Stack and why
 
 - **Next.js + TypeScript, one app.** UI and API in one codebase and one deploy, which suits a solo founder. Strong RTL and Arabic font support.
-- **Claude behind a provider interface.** Every call is "prompt in, schema-validated object out", so adding a Saudi-hosted model (for example ALLaM on a KSA cloud region) means writing one class and one `case` in `getProvider()`. Claude calls use structured outputs and server-side refusal fallbacks.
+- **Claude behind a provider interface.** Every call is "prompt in, schema-validated object out", so adding a Saudi-hosted model (for example ALLaM on a KSA cloud region) means writing one class and one `case` in `getProvider()`. Claude calls use structured outputs, plus server-side refusal fallbacks on models that support them.
+- **Model per tier.** Free users get Claude Haiku 5.5 (well under one US cent per resume and cover letter); paid users get Claude Sonnet 5.5. The tier is decided on the server (`src/lib/tier.ts`), never by the browser. Until accounts exist everyone is on the free tier; plans and usage limits arrive with accounts.
 - **Zod** for one set of schemas shared by the API, the model and the UI.
 - **docx** to generate Word files: recruiters and portals in the GCC expect .docx, and it keeps text ATS-readable.
 - **Vitest** for fast tests with no network.

@@ -2,23 +2,25 @@ import Anthropic from "@anthropic-ai/sdk";
 import { betaZodOutputFormat } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { LlmError, type LlmProvider, type StructuredRequest } from "./provider";
 
-const DEFAULT_MODEL = "claude-opus-5-5";
+/** Models that accept server-side refusal fallbacks. Haiku does not. */
+const FALLBACK_MODELS = new Set(["claude-sonnet-5-5", "claude-opus-5-5", "claude-fable-5-2"]);
 
 /**
  * Claude via the Anthropic API, with structured outputs.
  *
- * Server-side refusal fallbacks are on ("default" routing), so a rare policy
- * decline is retried on a fallback model inside the same call.
+ * On models that support it, server-side refusal fallbacks are on ("default"
+ * routing), so a rare policy decline is retried on a fallback model inside the
+ * same call.
  */
 export class AnthropicProvider implements LlmProvider {
   readonly name = "anthropic";
   private readonly client: Anthropic;
-  private readonly model: string;
+  readonly model: string;
 
-  constructor(options: { apiKey?: string; model?: string } = {}) {
+  constructor(options: { apiKey?: string; model: string }) {
     // With no apiKey the SDK reads ANTHROPIC_API_KEY (or other configured credentials).
     this.client = new Anthropic(options.apiKey ? { apiKey: options.apiKey } : {});
-    this.model = options.model ?? DEFAULT_MODEL;
+    this.model = options.model;
   }
 
   async generate<T>(request: StructuredRequest<T>): Promise<T> {
@@ -27,8 +29,9 @@ export class AnthropicProvider implements LlmProvider {
       response = await this.client.beta.messages.parse({
         model: this.model,
         max_tokens: 16000,
-        betas: ["server-side-fallback-2026-07-01"],
-        fallbacks: "default",
+        ...(FALLBACK_MODELS.has(this.model)
+          ? { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }
+          : {}),
         system: request.system,
         messages: [{ role: "user", content: request.prompt }],
         output_config: {

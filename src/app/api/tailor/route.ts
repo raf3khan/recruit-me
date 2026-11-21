@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { BadRequest, errorResponse, readJson } from "@/lib/api";
 import { getProvider } from "@/lib/llm";
+import { tierFor } from "@/lib/tier";
 import { buildApplicationPack } from "@/lib/tailoring/pipeline";
 import { CandidateProfileSchema, JobPostingSchema } from "@/lib/tailoring/schemas";
 
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
     const { profile, job } = await readJson(request, Body);
     if (job.description.trim().length < 80) throw new BadRequest("الصق وصف الوظيفة كامل.");
     if (job.description.length > 20000) throw new BadRequest("وصف الوظيفة طويل مرّة.");
-    const llm = getProvider();
+    const llm = getProvider(await tierFor(request));
     const pack = await buildApplicationPack(llm, profile, job);
     return Response.json({ ...pack, provider: llm.name });
   } catch (error) {

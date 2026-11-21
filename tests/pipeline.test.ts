@@ -8,14 +8,21 @@ import { SAMPLE_JOB, SAMPLE_PROFILE } from "@/lib/tailoring/sample";
 
 describe("getProvider", () => {
   it("uses the mock without an API key", () => {
-    expect(getProvider({}).name).toBe("mock");
+    expect(getProvider("free", {}).name).toBe("mock");
   });
-  it("uses Claude when a key is set", () => {
-    expect(getProvider({ ANTHROPIC_API_KEY: "test" }).name).toBe("anthropic");
+  it("uses Haiku for free users and Sonnet for paid users by default", () => {
+    const env = { ANTHROPIC_API_KEY: "test" };
+    expect(getProvider("free", env)).toMatchObject({ name: "anthropic", model: "claude-haiku-5-5" });
+    expect(getProvider("paid", env)).toMatchObject({ name: "anthropic", model: "claude-sonnet-5-5" });
+  });
+  it("lets the environment override each tier's model", () => {
+    const env = { ANTHROPIC_API_KEY: "test", ANTHROPIC_MODEL_FREE: "claude-sonnet-5-5", ANTHROPIC_MODEL_PAID: "claude-opus-5-5" };
+    expect(getProvider("free", env)).toMatchObject({ model: "claude-sonnet-5-5" });
+    expect(getProvider("paid", env)).toMatchObject({ model: "claude-opus-5-5" });
   });
   it("lets LLM_PROVIDER override", () => {
-    expect(getProvider({ ANTHROPIC_API_KEY: "test", LLM_PROVIDER: "mock" }).name).toBe("mock");
-    expect(() => getProvider({ LLM_PROVIDER: "nope" })).toThrow(/Unknown LLM_PROVIDER/);
+    expect(getProvider("free", { ANTHROPIC_API_KEY: "test", LLM_PROVIDER: "mock" }).name).toBe("mock");
+    expect(() => getProvider("free", { LLM_PROVIDER: "nope" })).toThrow(/Unknown LLM_PROVIDER/);
   });
 });
 
