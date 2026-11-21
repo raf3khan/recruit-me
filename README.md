@@ -1,36 +1,72 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Recruit Me
 
-## Getting Started
+An application assistant for GCC job seekers, starting with fresh graduates. The candidate pastes their CV and a job posting; the app prepares an English resume and cover letter tailored to that job, using only facts from the candidate's own CV. Nothing is sent anywhere: the candidate reviews, edits and downloads. The interface is Arabic, right-to-left, in Saudi dialect.
 
-First, run the development server:
+This repo currently covers **step 2 of the plan: resume and cover letter tailoring**. The job feed, scheduled preparation and outreach come later.
+
+## Run it
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env.local   # add ANTHROPIC_API_KEY for real tailoring
+npm run dev                  # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Without an API key the app runs in **demo mode** with a mock model, so the whole flow (sample CV, sample job, Word downloads) works offline.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm test          # unit tests (no network)
+npm run typecheck
+npm run lint
+npm run build
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## How tailoring works
 
-## Learn More
+```
+CV text ──extract_profile──▶ CandidateProfile (English, ids per item)
+                                   │
+Job posting ──analyze_job──▶ JobAnalysis (must-haves, keywords)
+                                   │
+                    tailor_resume ─┴─▶ TailoredResume (picks ids, rewrites bullets)
+                                   │
+               write_cover_letter ─┴─▶ CoverLetter
+                                   │
+              assembleResume + checks (deterministic) ──▶ ApplicationPack ──▶ Word / text
+```
 
-To learn more about Next.js, take a look at the following resources:
+The model can only **choose, order and reword**. It refers to profile items by id; names, institutions, titles and dates are copied from the profile when the resume is assembled. Then deterministic guards run (`src/lib/tailoring/assemble.ts`):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- items with unknown ids are dropped
+- every degree is kept, even if the model left it out
+- skills not found anywhere in the profile are dropped
+- a bullet that contains a number not present in that same profile item is dropped
+- numbers in the summary or cover letter that are not in the profile are flagged
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Every intervention is shown to the candidate as a warning.
 
-## Deploy on Vercel
+## Layout
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Path | What |
+|---|---|
+| `src/lib/llm/` | Provider layer. `LlmProvider` interface, Claude (`anthropic.ts`), mock, and `getProvider()` |
+| `src/lib/tailoring/schemas.ts` | Zod schemas, used both for validation and as structured-output formats |
+| `src/lib/tailoring/prompts.ts` | Prompts for each step |
+| `src/lib/tailoring/pipeline.ts` | The steps and `buildApplicationPack()` |
+| `src/lib/tailoring/assemble.ts` | Fact guards and the final resume document |
+| `src/lib/render/docx.ts` | ATS-friendly Word export and plain text |
+| `src/app/api/*` | `profile` (CV → profile), `tailor` (profile + job → pack), `export` (→ .docx) |
+| `src/app/tailor-flow.tsx` | The RTL candidate screen |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Stack and why
+
+- **Next.js + TypeScript, one app.** UI and API in one codebase and one deploy, which suits a solo founder. Strong RTL and Arabic font support.
+- **Claude behind a provider interface.** Every call is "prompt in, schema-validated object out", so adding a Saudi-hosted model (for example ALLaM on a KSA cloud region) means writing one class and one `case` in `getProvider()`. Claude calls use structured outputs and server-side refusal fallbacks.
+- **Zod** for one set of schemas shared by the API, the model and the UI.
+- **docx** to generate Word files: recruiters and portals in the GCC expect .docx, and it keeps text ATS-readable.
+- **Vitest** for fast tests with no network.
+- **No database yet.** The flow is stateless; storage (likely Postgres) arrives with accounts and the job queue.
+
+## Not in this step
+
+Accounts and saved profiles, the job feed, the overnight queue, any sending (every send will need the candidate's tap), email outreach, and Arabic-language documents.
