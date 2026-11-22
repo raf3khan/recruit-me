@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
+  // PGlite loads its WebAssembly from its own package folder, so it must not be bundled.
+  serverExternalPackages: ["@electric-sql/pglite", "pg"],
   partialPrefetching: true,
   turbopack: {
     rules: {
