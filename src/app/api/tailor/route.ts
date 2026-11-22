@@ -1,7 +1,8 @@
 import { z } from "zod";
-import { BadRequest, errorResponse, readJson } from "@/lib/api";
+import { BadRequest, errorResponse, PaymentRequired, readJson } from "@/lib/api";
+import { withIdentity } from "@/lib/identity";
 import { getProvider } from "@/lib/llm";
-import { tierFor } from "@/lib/tier";
+import { entitlementFor, hasPacksLeft, recordPack } from "@/lib/tier";
 import { buildApplicationPack } from "@/lib/tailoring/pipeline";
 import { AddressFormSchema, CandidateProfileSchema, JobPostingSchema } from "@/lib/tailoring/schemas";
 
@@ -13,9 +14,14 @@ export async function POST(request: Request) {
     const { profile, job, address } = await readJson(request, Body);
     if (job.description.trim().length < 80) throw new BadRequest("الصق وصف الوظيفة كامل.");
     if (job.description.length > 20000) throw new BadRequest("وصف الوظيفة طويل مرّة.");
-    const llm = getProvider(await tierFor(request));
+    const entitlement = await entitlementFor(request);
+    if (!hasPacksLeft(entitlement)) {
+      throw new PaymentRequired("خلصت باقاتك المجانية لهذا الشهر. اشترك عشان تكمل.");
+    }
+    const llm = getProvider(entitlement.tier);
     const pack = await buildApplicationPack(llm, profile, job, address);
-    return Response.json({ ...pack, provider: llm.name });
+    await recordPack(entitlement);
+    return withIdentity(Response.json({ ...pack, provider: llm.name }), entitlement.identity);
   } catch (error) {
     return errorResponse(error);
   }

@@ -71,3 +71,24 @@ Every intervention is shown to the candidate as a warning.
 ## Not in this step
 
 Accounts and saved profiles, the job feed, the overnight queue, any sending (every send will need the candidate's tap), email outreach, and Arabic-language documents.
+
+## Billing (Paddle)
+
+Paddle is the merchant of record: it sells to the candidate and charges and pays GCC VAT. The code talks to a
+`BillingProvider` interface (`src/lib/billing`), so Tap can be added later for mada, STC Pay, KNET and Benefit.
+
+- Free users get `FREE_PACKS_PER_MONTH` tailored packs a month (default 5). After that `/api/tailor` returns 402 and
+  the page shows the upgrade card. Subscribers (active, trialing, or past_due while Paddle retries the card) get the
+  paid model and no cap.
+- Checkout: `POST /api/billing/checkout` creates a Paddle transaction tagged with the visitor's id and redirects to
+  `/pay?_ptxn=...`, where Paddle.js opens the overlay checkout (full screen on phones, Apple Pay in Safari).
+- `POST /api/billing/webhook` verifies `Paddle-Signature` and records `subscription.*` events.
+- `POST /api/billing/portal` returns Paddle's self-serve link (change card, cancel, invoices).
+
+Paddle dashboard setup: create the product and prices, an API key and a client-side token; set the default payment
+link to `https://<domain>/pay`; add a webhook to `https://<domain>/api/billing/webhook` for `subscription.*` events.
+Copy everything into the variables in `.env.example`.
+
+Not production-ready yet: subscriptions and usage are kept in memory (lost on restart, not shared between server
+instances), and visitors are identified by a signed cookie until accounts exist. Replace `MemoryBillingStore` with
+a database store before taking real payments.

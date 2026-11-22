@@ -4,14 +4,21 @@ import { useState } from "react";
 import type { ApplicationPack } from "@/lib/tailoring/pipeline";
 import { SAMPLE_JOB, SAMPLE_PROFILE } from "@/lib/tailoring/sample";
 import type { AddressForm, CandidateProfile, CoverLetter, JobPosting } from "@/lib/tailoring/schemas";
+import { Allowance, SubscribedBanner, UpgradeOffer, useBilling } from "./upgrade";
 
 type Pack = ApplicationPack & { provider: string };
 
 async function postJson<T>(url: string, body: unknown): Promise<T> {
   const res = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error ?? "صار خطأ. جرّب مرة ثانية.");
+  if (!res.ok) throw new ApiError(data.error ?? "صار خطأ. جرّب مرة ثانية.", data.code);
   return data as T;
+}
+
+class ApiError extends Error {
+  constructor(message: string, readonly code?: string) {
+    super(message);
+  }
 }
 
 async function download(body: unknown) {
@@ -54,6 +61,8 @@ export function TailorFlow() {
   const [busy, setBusy] = useState<"profile" | "tailor" | "export" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [address, setAddress] = useState<AddressForm>("neutral");
+  const [needsUpgrade, setNeedsUpgrade] = useState(false);
+  const { billing, refreshBilling } = useBilling();
 
   async function run<T>(kind: typeof busy, fn: () => Promise<T>) {
     setBusy(kind);
@@ -61,7 +70,8 @@ export function TailorFlow() {
     try {
       return await fn();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (e instanceof ApiError && e.code === "upgrade_required") setNeedsUpgrade(true);
+      else setError(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(null);
     }
@@ -80,12 +90,14 @@ export function TailorFlow() {
       const data = await postJson<Pack>("/api/tailor", { profile, job, address });
       setPack(data);
       setLetter(data.coverLetter);
+      void refreshBilling();
     });
 
   const jobReady = job.title.trim().length > 0 && job.description.trim().length >= 80;
 
   return (
     <div className="flex flex-col gap-5">
+      <SubscribedBanner />
       <Card step="١" title="سيرتك الذاتية">
         <p className="mb-3 text-sm text-muted">
           الصق نص سيرتك (عربي أو إنجليزي). نطلع منها معلوماتك ونستخدمها بس، ما نضيف شي من عندنا.
@@ -176,7 +188,10 @@ export function TailorFlow() {
           </button>
         </div>
         {!profile && <p className="mt-2 text-sm text-muted">أول شي جهّز سيرتك في الخطوة ١.</p>}
+        <Allowance billing={billing} />
       </Card>
+
+      {needsUpgrade && <UpgradeOffer billing={billing} />}
 
       {error && (
         <p role="alert" className="rounded-xl bg-warn-soft px-4 py-3 text-warn">
