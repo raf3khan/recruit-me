@@ -3,7 +3,7 @@
 import { useState } from "react";
 import type { ApplicationPack } from "@/lib/tailoring/pipeline";
 import { SAMPLE_JOB, SAMPLE_PROFILE } from "@/lib/tailoring/sample";
-import type { CandidateProfile, CoverLetter, JobPosting } from "@/lib/tailoring/schemas";
+import type { AddressForm, CandidateProfile, CoverLetter, JobPosting } from "@/lib/tailoring/schemas";
 
 type Pack = ApplicationPack & { provider: string };
 
@@ -53,6 +53,7 @@ export function TailorFlow() {
   const [letter, setLetter] = useState<CoverLetter | null>(null);
   const [busy, setBusy] = useState<"profile" | "tailor" | "export" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [address, setAddress] = useState<AddressForm>("neutral");
 
   async function run<T>(kind: typeof busy, fn: () => Promise<T>) {
     setBusy(kind);
@@ -76,7 +77,7 @@ export function TailorFlow() {
   const tailor = () =>
     run("tailor", async () => {
       if (!profile) return;
-      const data = await postJson<Pack>("/api/tailor", { profile, job });
+      const data = await postJson<Pack>("/api/tailor", { profile, job, address });
       setPack(data);
       setLetter(data.coverLetter);
     });
@@ -110,6 +111,25 @@ export function TailorFlow() {
             جرّب بسيرة مثال
           </button>
         </div>
+        <fieldset className="mt-4 flex flex-wrap items-center gap-2 text-sm">
+          <legend className="mb-2 w-full text-muted">كيف تحب نخاطبك في النصائح؟</legend>
+          {(
+            [
+              ["masculine", "أنتَ"],
+              ["feminine", "أنتِ"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              type="button"
+              aria-pressed={address === value}
+              onClick={() => setAddress(address === value ? "neutral" : value)}
+              className={`rounded-full border px-4 py-1.5 ${address === value ? "border-transparent bg-accent-soft font-semibold text-accent" : "border-border"}`}
+            >
+              {label}
+            </button>
+          ))}
+        </fieldset>
         {profile && <ProfileSummary profile={profile} />}
       </Card>
 

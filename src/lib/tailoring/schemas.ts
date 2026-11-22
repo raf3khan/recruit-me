@@ -88,6 +88,14 @@ export type Experience = z.infer<typeof ExperienceSchema>;
 export type Project = z.infer<typeof ProjectSchema>;
 export type Certification = z.infer<typeof CertificationSchema>;
 
+/**
+ * How the app speaks to the candidate in Arabic. Asked once at sign-up.
+ * "neutral" is used when we don't know (public pages, old accounts).
+ */
+export const AddressFormSchema = z.enum(["masculine", "feminine", "neutral"]);
+
+export type AddressForm = z.infer<typeof AddressFormSchema>;
+
 // ---------------------------------------------------------------------------
 // Job posting and the model's reading of it.
 // ---------------------------------------------------------------------------

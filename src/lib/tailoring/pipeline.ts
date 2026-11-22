@@ -15,6 +15,7 @@ import {
   CoverLetterSchema,
   JobAnalysisSchema,
   TailoredResumeSchema,
+  type AddressForm,
   type CandidateProfile,
   type CoverLetter,
   type JobAnalysis,
@@ -51,13 +52,14 @@ export async function tailorResume(
   profile: CandidateProfile,
   analysis: JobAnalysis,
   job: JobPosting,
+  address: AddressForm = "neutral",
 ): Promise<TailoredResume> {
   return llm.generate({
     task: "tailor_resume",
     system: TAILOR_RESUME_SYSTEM,
-    prompt: tailorResumePrompt(profile, analysis, job),
+    prompt: tailorResumePrompt(profile, analysis, job, address),
     schema: TailoredResumeSchema,
-    input: { profile, analysis, job },
+    input: { profile, analysis, job, address },
     effort: "medium",
   });
 }
@@ -92,17 +94,19 @@ export interface ApplicationPack {
 
 /**
  * The whole step-2 flow for one job: read the job, tailor the resume, write
- * the cover letter, and run the deterministic checks. Nothing is sent
+ * the cover letter, and run the deterministic checks. `address` is how the
+ * Arabic tips speak to the candidate (asked at sign-up). Nothing is sent
  * anywhere; the candidate reviews and decides what to do with the pack.
  */
 export async function buildApplicationPack(
   llm: LlmProvider,
   rawProfile: CandidateProfile,
   job: JobPosting,
+  address: AddressForm = "neutral",
 ): Promise<ApplicationPack> {
   const profile = assignIds(rawProfile);
   const analysis = await analyzeJob(llm, job);
-  const tailored = await tailorResume(llm, profile, analysis, job);
+  const tailored = await tailorResume(llm, profile, analysis, job, address);
   const coverLetter = await writeCoverLetter(llm, profile, analysis, tailored, job);
 
   const { document, warnings } = assembleResume(profile, tailored);

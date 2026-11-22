@@ -84,3 +84,26 @@ describe("renderers", () => {
     expect(coverLetterToText(pack.coverLetter, "Noura")).toMatch(/Kind regards,\nNoura$/);
   });
 });
+
+describe("address form", () => {
+  async function tailorPrompt(address?: "masculine" | "feminine" | "neutral") {
+    const prompts: string[] = [];
+    const mock = new MockProvider();
+    await buildApplicationPack(
+      { name: "spy", generate: (r) => (prompts.push(r.prompt), mock.generate(r)) },
+      SAMPLE_PROFILE,
+      SAMPLE_JOB,
+      address,
+    );
+    return prompts[1];
+  }
+
+  it("tells the model how to address the candidate", async () => {
+    expect(await tailorPrompt("feminine")).toContain("أنتِ");
+    expect(await tailorPrompt("masculine")).toMatch(/masculine: speak to the candidate as أنت,/);
+  });
+
+  it("falls back to neutral wording when the form is unknown", async () => {
+    expect(await tailorPrompt()).toContain("neutral: we don't know");
+  });
+});

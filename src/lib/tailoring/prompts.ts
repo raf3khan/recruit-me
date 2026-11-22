@@ -1,4 +1,4 @@
-import type { CandidateProfile, JobAnalysis, JobPosting, TailoredResume } from "./schemas";
+import type { AddressForm, CandidateProfile, JobAnalysis, JobPosting, TailoredResume } from "./schemas";
 
 /**
  * Prompts for each step. Documents are in English (private-sector GCC jobs);
@@ -53,10 +53,26 @@ How to tailor:
 - Write the headline and a 2-3 sentence summary in a confident, plain, third-person-implied style (no "I", no clichés such as "hard-working team player").
 - "skills": only skills that appear in the profile (including tools named in projects or experience), most relevant first, at most 15.
 - "coverage": for each must-have requirement the profile supports, cite the ids that show it. "gaps": must-haves the profile does not show.
-- "adviceAr": 2-4 short, practical tips in Saudi dialect Arabic (عامية سعودية بيضاء) for this application, for example what to prepare for the interview or which gap to address. Be warm and direct.`;
+- "adviceAr": 2-4 short, practical tips in Saudi dialect Arabic (عامية سعودية بيضاء) for this application, for example what to prepare for the interview or which gap to address. Be warm and direct. Address the candidate exactly as <address_form> says.`;
 
-export function tailorResumePrompt(profile: CandidateProfile, analysis: JobAnalysis, job: JobPosting): string {
-  return `<candidate_profile>
+const ADDRESS_FORM_RULES: Record<AddressForm, string> = {
+  masculine: "masculine: speak to the candidate as أنت, with masculine verbs and adjectives (جهّز، ركّز، تتكلم، مستعد).",
+  feminine: "feminine: speak to the candidate as أنتِ, with feminine verbs and adjectives (جهّزي، ركّزي، تتكلمين، مستعدة).",
+  neutral:
+    "neutral: we don't know how the candidate wants to be addressed, so avoid gendered verbs and adjectives. Use verbal nouns and impersonal phrasing (الأفضل تجهيز مثال…، يستحق التركيز على…).",
+};
+
+export function tailorResumePrompt(
+  profile: CandidateProfile,
+  analysis: JobAnalysis,
+  job: JobPosting,
+  address: AddressForm = "neutral",
+): string {
+  return `<address_form>
+${ADDRESS_FORM_RULES[address]}
+</address_form>
+
+<candidate_profile>
 ${JSON.stringify(profile, null, 2)}
 </candidate_profile>
 
