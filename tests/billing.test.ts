@@ -146,10 +146,11 @@ describe("subscription events", () => {
 });
 
 describe("config", () => {
-  it("only sells plans that have a price id, and refuses mock billing in production", () => {
+  it("only sells plans that have a price id, and refuses mock billing in production outside test mode", () => {
     expect(plansFor("paddle", { PADDLE_PRICE_PLUS_MONTHLY: "pri_monthly" }).map((p) => p.id)).toEqual(["plus_monthly"]);
     expect(getBillingProvider({ PADDLE_API_KEY: "k" }).name).toBe("paddle");
     expect(getBillingProvider({}).name).toBe("mock");
-    expect(() => getBillingProvider({ NODE_ENV: "production" })).toThrow(/not allowed in production/);
+    expect(() => getBillingProvider({ NODE_ENV: "production" })).toThrow(/only allowed in test mode/);
+    expect(getBillingProvider({ NODE_ENV: "production", TEST_MODE: "on" }).name).toBe("mock");
   });
 });

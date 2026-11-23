@@ -1,3 +1,4 @@
+import { isTestMode } from "@/lib/mode";
 import { Page } from "@/components/page";
 import { requireUser } from "@/lib/auth/current";
 import { FREE_MONTHLY_PACKS, usageFor } from "@/lib/app/usage";
@@ -115,7 +116,7 @@ async function Plans({ lang, searchParams }: { lang: Lang; searchParams: PagePro
         </div>
       </div>
       <p className="small muted" style={{ textAlign: "center" }}>{t("Prices and limits are placeholders until launch.", "الأسعار والحدود مبدئية لين الإطلاق.")}</p>
-      {process.env.NODE_ENV !== "production" && (
+      {isTestMode() && (
         <form action={devSetPlanAction} className="dev" style={{ display: "flex", gap: ".6rem", alignItems: "center", flexWrap: "wrap" }}>
           <input type="hidden" name="lang" value={lang} />
           <input type="hidden" name="plan" value={plus ? "free" : "plus"} />

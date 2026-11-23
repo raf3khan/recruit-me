@@ -1,3 +1,4 @@
+import { isTestMode } from "@/lib/mode";
 import Link from "next/link";
 import { Suspense } from "react";
 import { Icon } from "@/components/icon";
@@ -78,7 +79,7 @@ async function Onboarding({ lang, step }: { lang: Lang; step: Step }) {
             )}
           </p>
           <CvForm lang={lang} addressForm={user.addressForm} from="onboard" />
-          {process.env.NODE_ENV !== "production" && (
+          {isTestMode() && (
             <form action={sampleCvAction}>
               <input type="hidden" name="lang" value={lang} />
               <button className="btn-text">{t("Development: use the sample CV", "للتطوير: استخدم السيرة التجريبية")}</button>

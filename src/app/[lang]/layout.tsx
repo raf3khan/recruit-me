@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { IBM_Plex_Sans_Arabic } from "next/font/google";
 import { notFound } from "next/navigation";
 import { isLang, LANGS } from "@/lib/i18n";
+import { isHostedTest } from "@/lib/mode";
 import "../globals.css";
 
 const plexArabic = IBM_Plex_Sans_Arabic({
@@ -26,7 +27,16 @@ export default async function RootLayout({ children, params }: LayoutProps<"/[la
   if (!isLang(lang)) notFound();
   return (
     <html lang={lang} dir={lang === "ar" ? "rtl" : "ltr"} className={plexArabic.variable}>
-      <body>{children}</body>
+      <body>
+        {isHostedTest() && (
+          <p className="test-banner" role="status">
+            {lang === "ar"
+              ? "نسخة تجريبية: رمز الدخول يظهر على الشاشة، والدفع مو حقيقي."
+              : "Test version: sign-in codes show on screen and payments are simulated."}
+          </p>
+        )}
+        {children}
+      </body>
     </html>
   );
 }

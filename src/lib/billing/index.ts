@@ -1,3 +1,4 @@
+import { isTestMode } from "@/lib/mode";
 import { MockBillingProvider } from "./mock";
 import { PaddleProvider } from "./paddle";
 import type { BillingProvider } from "./types";
@@ -24,7 +25,7 @@ export function getBillingProvider(env: Env = process.env): BillingProvider {
       return new PaddleProvider({ apiKey: env.PADDLE_API_KEY, environment, webhookSecret: env.PADDLE_WEBHOOK_SECRET ?? "" });
     }
     case "mock":
-      if (env.NODE_ENV === "production") throw new Error("Mock billing is not allowed in production. Set PADDLE_API_KEY.");
+      if (!isTestMode(env)) throw new Error("Mock billing is only allowed in test mode. Set PADDLE_API_KEY.");
       return new MockBillingProvider();
     default:
       throw new Error(`Unknown BILLING_PROVIDER "${choice}". Use "paddle" or "mock".`);
