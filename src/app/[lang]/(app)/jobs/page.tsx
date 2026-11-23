@@ -1,3 +1,4 @@
+import { isTestMode } from "@/lib/mode";
 import Link from "next/link";
 import { Icon } from "@/components/icon";
 import { FitTag, Mark, StatusPill, companyOf } from "@/components/job-bits";
@@ -89,7 +90,7 @@ async function Jobs({ lang }: { lang: Lang }) {
         <AddJobForm lang={lang} addressForm={user.addressForm} />
       </details>
 
-      {process.env.NODE_ENV !== "production" && rows.length === 0 && (
+      {isTestMode() && rows.length === 0 && (
         <form action={loadSampleJobsAction} className="dev">
           <input type="hidden" name="lang" value={lang} />
           {t("Development only: ", "للتطوير فقط: ")}

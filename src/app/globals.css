@@ -271,3 +271,5 @@ select.input { appearance: auto; }
 @keyframes rot { to { transform: rotate(360deg); } }
 details.card > summary { cursor: pointer; font-weight: 600; list-style: none; }
 details.card > summary::-webkit-details-marker { display: none; }
+
+.test-banner { margin: 0; padding: .4rem 1rem; text-align: center; font-size: .8rem; background: var(--amber-soft); color: var(--amber); }

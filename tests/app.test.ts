@@ -219,3 +219,14 @@ describe("copy helpers", () => {
     expect(fitLevel(SAMPLE_PROFILE, "Forklift driver with a heavy vehicle licence. Night shifts.")).toBe(0);
   });
 });
+
+describe("test mode", () => {
+  it("is on in development and only on by choice in production", async () => {
+    const { isTestMode, isHostedTest } = await import("@/lib/mode");
+    expect(isTestMode({ NODE_ENV: "development" })).toBe(true);
+    expect(isTestMode({ NODE_ENV: "production" })).toBe(false);
+    expect(isTestMode({ NODE_ENV: "production", TEST_MODE: "on" })).toBe(true);
+    expect(isHostedTest({ NODE_ENV: "development", TEST_MODE: "on" })).toBe(false);
+    expect(isHostedTest({ NODE_ENV: "production", TEST_MODE: "on" })).toBe(true);
+  });
+});

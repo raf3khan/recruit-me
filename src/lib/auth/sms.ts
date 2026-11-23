@@ -1,3 +1,5 @@
+import { isTestMode } from "@/lib/mode";
+
 /** Sends the sign-in code. A real provider (for example Unifonic or Twilio) implements this. */
 export interface SmsSender {
   readonly name: string;
@@ -13,7 +15,7 @@ export class DevSmsSender implements SmsSender {
 }
 
 export function getSmsSender(env: Record<string, string | undefined> = process.env): SmsSender {
-  const choice = env.SMS_PROVIDER || (env.NODE_ENV === "production" ? "" : "dev");
+  const choice = env.SMS_PROVIDER || (isTestMode(env) ? "dev" : "");
   if (choice === "dev") return new DevSmsSender();
   throw new Error(`No SMS provider configured (SMS_PROVIDER="${choice}"). Set SMS_PROVIDER=dev for local use.`);
 }

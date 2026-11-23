@@ -1,6 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
+import { isTestMode } from "@/lib/mode";
 import { redirect } from "next/navigation";
 import { refresh } from "next/cache";
 import { z } from "zod";
@@ -30,6 +31,7 @@ import { AddressFormSchema, CandidateProfileSchema } from "@/lib/tailoring/schem
 export type FormState = { error?: string; ok?: boolean; devCode?: string; phone?: string; limit?: boolean } | null;
 
 const isProd = process.env.NODE_ENV === "production";
+const testMode = isTestMode();
 
 function langOf(form: FormData): Lang {
   const v = String(form.get("lang") ?? "ar");
@@ -62,7 +64,7 @@ export async function requestCodeAction(_prev: FormState, form: FormData): Promi
     return { error: t("Please agree to the terms and privacy policy to continue.", "للمتابعة لازم الموافقة على الشروط وسياسة الخصوصية.") };
   const result = await requestCode(await getDb(), phone, getSmsSender());
   if (!result.ok) return { error: t("Too many codes. Try again in an hour.", "طلبات كثيرة. جرّب مرة ثانية بعد ساعة.") };
-  return { ok: true, phone, devCode: isProd ? undefined : result.devCode };
+  return { ok: true, phone, devCode: testMode ? result.devCode : undefined };
 }
 
 export async function verifyCodeAction(_prev: FormState, form: FormData): Promise<FormState> {
@@ -135,7 +137,7 @@ export async function readCvAction(_prev: FormState, form: FormData): Promise<Fo
 /** Development only: fills the profile with the made-up sample graduate. */
 export async function sampleCvAction(form: FormData) {
   const lang = langOf(form);
-  if (isProd) redirect(`/${lang}/onboard?step=cv`);
+  if (!testMode) redirect(`/${lang}/onboard?step=cv`);
   const user = await userOrRedirect(lang);
   await service.saveProfile(await getDb(), user, SAMPLE_PROFILE);
   redirect(`/${lang}/onboard?step=check`);
@@ -210,7 +212,7 @@ export async function addJobAction(_prev: FormState, form: FormData): Promise<Fo
 /** Development only: adds the made-up demo jobs so the list isn't empty. */
 export async function loadSampleJobsAction(form: FormData) {
   const lang = langOf(form);
-  if (isProd) return;
+  if (!testMode) return;
   const user = await userOrRedirect(lang);
   const db = await getDb();
   for (const job of SAMPLE_JOBS) await service.addJob(db, user, job, "sample");
@@ -341,7 +343,7 @@ export async function manageSubscriptionAction(form: FormData) {
 /** Outside production this switches the plan directly so Plus can be tested without paying. */
 export async function devSetPlanAction(form: FormData) {
   const lang = langOf(form);
-  if (isProd) return;
+  if (!testMode) return;
   const user = await userOrRedirect(lang);
   await service.setPlan(await getDb(), user, form.get("plan") === "plus" ? "plus" : "free");
   refresh();
