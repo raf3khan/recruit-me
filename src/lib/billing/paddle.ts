@@ -73,6 +73,10 @@ export class PaddleProvider implements BillingProvider {
     return { url };
   }
 
+  async cancelSubscription(subscriptionId: string): Promise<void> {
+    await this.call("POST", `/subscriptions/${encodeURIComponent(subscriptionId)}/cancel`, { effective_from: "immediately" });
+  }
+
   async parseWebhook(rawBody: string, headers: Headers): Promise<SubscriptionEvent | null> {
     this.verifySignature(rawBody, headers.get("paddle-signature"));
     let event: PaddleEvent;

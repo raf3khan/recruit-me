@@ -1,4 +1,5 @@
-import { BillingError, getBillingProvider, getBillingStore } from "@/lib/billing";
+import { applySubscriptionEvent, BillingError, getBillingProvider } from "@/lib/billing";
+import { getDb } from "@/lib/db";
 
 /**
  * Subscription events from the billing provider. The signature is checked against
@@ -9,12 +10,9 @@ export async function POST(request: Request) {
   try {
     const event = await getBillingProvider().parseWebhook(rawBody, request.headers);
     if (event) {
-      const applied = await getBillingStore().applySubscription(
-        { ...event.subscription, updatedAt: event.occurredAt },
-        event.eventId,
-      );
+      const applied = await applySubscriptionEvent(await getDb(), event);
       console.info(
-        `[billing] ${event.subscription.subscriptionId} -> ${event.subscription.status}${applied ? "" : " (stale or duplicate, skipped)"}`,
+        `[billing] ${event.subscription.subscriptionId} -> ${event.subscription.status}${applied ? "" : " (stale, duplicate or unknown user; skipped)"}`,
       );
     }
     return new Response(null, { status: 200 });

@@ -1,14 +1,20 @@
 import { createHmac } from "node:crypto";
-import { describe, expect, it, vi } from "vitest";
-import { getBillingProvider, plansFor } from "@/lib/billing";
+import { eq } from "drizzle-orm";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  applySubscriptionEvent,
+  getBillingProvider,
+  latestSubscription,
+  plansFor,
+  type SubscriptionEvent,
+  type SubscriptionStatus,
+} from "@/lib/billing";
 import { PaddleProvider } from "@/lib/billing/paddle";
-import { MemoryBillingStore, usageMonth } from "@/lib/billing/store";
-import { IDENTITY_COOKIE, identify } from "@/lib/identity";
-import { entitlementFor, hasPacksLeft, recordPack } from "@/lib/tier";
+import { openDb, type Db } from "@/lib/db";
+import { subscriptions, users } from "@/lib/db/schema";
 
 const SECRET = "pdl_ntfset_test";
 const NOW = Date.parse("2026-11-22T12:00:00Z");
-const env = { PADDLE_PRICE_PRO_MONTHLY: "pri_monthly", SESSION_SECRET: "s3cret", FREE_PACKS_PER_MONTH: "2" };
 
 function signed(body: string, ts = Math.floor(NOW / 1000), secret = SECRET) {
   const h1 = createHmac("sha256", secret).update(`${ts}:${body}`).digest("hex");
@@ -37,10 +43,10 @@ const subscriptionEvent = (overrides: Record<string, unknown> = {}) =>
 
 describe("paddle webhooks", () => {
   it("accepts a correctly signed subscription event", async () => {
-    vi.stubEnv("PADDLE_PRICE_PRO_MONTHLY", "pri_monthly");
+    vi.stubEnv("PADDLE_PRICE_PLUS_MONTHLY", "pri_monthly");
     const body = subscriptionEvent();
     const event = await paddle().parseWebhook(body, signed(body));
-    expect(event?.subscription).toMatchObject({ userRef: "user-1", status: "active", planId: "pro_monthly", customerId: "ctm_1" });
+    expect(event?.subscription).toMatchObject({ userRef: "user-1", status: "active", planId: "plus_monthly", customerId: "ctm_1" });
     vi.unstubAllEnvs();
   });
 
@@ -70,7 +76,7 @@ describe("paddle checkout", () => {
     );
     const { url } = await paddle(fetchImpl as unknown as typeof fetch).createCheckout({
       userRef: "user-1",
-      planId: "pro_monthly",
+      planId: "plus_monthly",
       priceId: "pri_monthly",
       locale: "ar",
     });
@@ -79,7 +85,7 @@ describe("paddle checkout", () => {
     expect(calledUrl).toBe("https://sandbox-api.paddle.com/transactions");
     expect(JSON.parse(String(init?.body))).toEqual({
       items: [{ price_id: "pri_monthly", quantity: 1 }],
-      custom_data: { user_ref: "user-1", plan_id: "pro_monthly" },
+      custom_data: { user_ref: "user-1", plan_id: "plus_monthly" },
     });
   });
 
@@ -91,77 +97,57 @@ describe("paddle checkout", () => {
   });
 });
 
-describe("store", () => {
-  const sub = (status: "active" | "canceled", updatedAt: string) => ({
-    userRef: "user-1",
-    provider: "paddle",
-    subscriptionId: "sub_1",
-    customerId: "ctm_1",
-    planId: "pro_monthly",
-    status,
-    currentPeriodEnd: null,
-    updatedAt,
+describe("subscription events", () => {
+  let db: Db;
+  let userId: string;
+  beforeEach(async () => {
+    db = await openDb("memory");
+    [{ id: userId }] = await db.insert(users).values({ phone: "+966551234567" }).returning({ id: users.id });
   });
 
-  it("skips duplicate and out-of-order events", async () => {
-    const store = new MemoryBillingStore();
-    expect(await store.applySubscription(sub("canceled", "2026-11-22T12:00:00Z"), "evt_2")).toBe(true);
-    expect(await store.applySubscription(sub("active", "2026-11-22T11:00:00Z"), "evt_1")).toBe(false);
-    expect(await store.applySubscription(sub("canceled", "2026-11-22T12:00:00Z"), "evt_2")).toBe(false);
-    expect((await store.getSubscription("user-1"))?.status).toBe("canceled");
+  const event = (status: SubscriptionStatus, occurredAt: string, ref = userId): SubscriptionEvent => ({
+    eventId: `evt_${occurredAt}`,
+    occurredAt,
+    subscription: {
+      userRef: ref,
+      provider: "paddle",
+      subscriptionId: "sub_1",
+      customerId: "ctm_1",
+      planId: "plus_monthly",
+      status,
+      currentPeriodEnd: "2026-12-22T00:00:00Z",
+    },
+  });
+  const planOf = async () => (await db.select().from(users).where(eq(users.id, userId)))[0].plan;
+
+  it("moves the user to Plus, keeps Plus while past due, and back to Free when canceled", async () => {
+    expect(await applySubscriptionEvent(db, event("active", "2026-11-22T10:00:00Z"))).toBe(true);
+    expect(await planOf()).toBe("plus");
+    await applySubscriptionEvent(db, event("past_due", "2026-11-23T10:00:00Z"));
+    expect(await planOf()).toBe("plus");
+    await applySubscriptionEvent(db, event("canceled", "2026-11-24T10:00:00Z"));
+    expect(await planOf()).toBe("free");
+    expect((await latestSubscription(db, userId))?.status).toBe("canceled");
   });
 
-  it("counts usage by Riyadh calendar month", () => {
-    expect(usageMonth(new Date("2026-11-30T21:30:00Z"))).toBe("2026-12");
-    expect(usageMonth(new Date("2026-11-30T20:30:00Z"))).toBe("2026-11");
-  });
-});
-
-describe("entitlement", () => {
-  const request = (cookie?: string) => new Request("https://x.test/api/tailor", { headers: cookie ? { cookie } : {} });
-
-  it("gives a new visitor a signed id and rejects a forged one", () => {
-    const first = identify(request(), env);
-    expect(first.setCookie).toContain(`${IDENTITY_COOKIE}=${first.userRef}.`);
-    const cookie = first.setCookie!.split(";")[0];
-    expect(identify(request(cookie), env)).toEqual({ userRef: first.userRef, setCookie: null });
-    const forged = identify(request(`${IDENTITY_COOKIE}=someone-else.${cookie.split(".")[1]}`), env);
-    expect(forged.userRef).not.toBe("someone-else");
+  it("skips late and repeated events, and events for unknown users", async () => {
+    await applySubscriptionEvent(db, event("canceled", "2026-11-22T12:00:00Z"));
+    expect(await applySubscriptionEvent(db, event("active", "2026-11-22T11:00:00Z"))).toBe(false);
+    expect(await applySubscriptionEvent(db, event("canceled", "2026-11-22T12:00:00Z"))).toBe(false);
+    expect(await planOf()).toBe("free");
+    expect(await applySubscriptionEvent(db, event("active", "2026-11-22T13:00:00Z", "00000000-0000-0000-0000-000000000000"))).toBe(false);
   });
 
-  it("stops free users at the monthly limit and lets subscribers through", async () => {
-    const store = new MemoryBillingStore();
-    const cookie = identify(request(), env).setCookie!.split(";")[0];
-    const now = new Date(NOW);
-    let e = await entitlementFor(request(cookie), env, store, now);
-    await recordPack(e, store, now);
-    await recordPack(e, store, now);
-    e = await entitlementFor(request(cookie), env, store, now);
-    expect(e).toMatchObject({ tier: "free", packsUsed: 2, packsLimit: 2 });
-    expect(hasPacksLeft(e)).toBe(false);
-
-    await store.applySubscription(
-      {
-        userRef: e.identity.userRef,
-        provider: "paddle",
-        subscriptionId: "sub_1",
-        customerId: "ctm_1",
-        planId: "pro_monthly",
-        status: "past_due",
-        currentPeriodEnd: null,
-        updatedAt: now.toISOString(),
-      },
-      "evt_1",
-    );
-    e = await entitlementFor(request(cookie), env, store, now);
-    expect(e).toMatchObject({ tier: "paid", packsLimit: null });
-    expect(hasPacksLeft(e)).toBe(true);
+  it("deletes the subscription record with the account", async () => {
+    await applySubscriptionEvent(db, event("active", "2026-11-22T10:00:00Z"));
+    await db.delete(users).where(eq(users.id, userId));
+    expect(await db.select().from(subscriptions)).toEqual([]);
   });
 });
 
 describe("config", () => {
   it("only sells plans that have a price id, and refuses mock billing in production", () => {
-    expect(plansFor("paddle", env).map((p) => p.id)).toEqual(["pro_monthly"]);
+    expect(plansFor("paddle", { PADDLE_PRICE_PLUS_MONTHLY: "pri_monthly" }).map((p) => p.id)).toEqual(["plus_monthly"]);
     expect(getBillingProvider({ PADDLE_API_KEY: "k" }).name).toBe("paddle");
     expect(getBillingProvider({}).name).toBe("mock");
     expect(() => getBillingProvider({ NODE_ENV: "production" })).toThrow(/not allowed in production/);

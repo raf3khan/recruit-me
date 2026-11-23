@@ -1,28 +1,21 @@
 import { MockBillingProvider } from "./mock";
 import { PaddleProvider } from "./paddle";
-import { MemoryBillingStore, type BillingStore } from "./store";
 import type { BillingProvider } from "./types";
 
 export * from "./types";
 export * from "./plans";
-export { usageMonth, type BillingStore } from "./store";
+export { applySubscriptionEvent, latestSubscription } from "./store";
+export { MockBillingProvider } from "./mock";
 
 type Env = Record<string, string | undefined>;
-
-// One store per server process until a database-backed store replaces it.
-const globalStore = globalThis as unknown as { __wadhifaBillingStore?: BillingStore };
-export function getBillingStore(): BillingStore {
-  globalStore.__wadhifaBillingStore ??= new MemoryBillingStore();
-  return globalStore.__wadhifaBillingStore;
-}
 
 /**
  * BILLING_PROVIDER  paddle (default when PADDLE_API_KEY is set) | mock
  *
  * Tap (mada, STC Pay, KNET, Benefit) is added later by implementing
- * BillingProvider and adding a case here, once there is a UAE company.
+ * BillingProvider and adding a case here, once there is a company.
  */
-export function getBillingProvider(env: Env = process.env, store: BillingStore = getBillingStore()): BillingProvider {
+export function getBillingProvider(env: Env = process.env): BillingProvider {
   const choice = env.BILLING_PROVIDER || (env.PADDLE_API_KEY ? "paddle" : "mock");
   switch (choice) {
     case "paddle": {
@@ -32,7 +25,7 @@ export function getBillingProvider(env: Env = process.env, store: BillingStore =
     }
     case "mock":
       if (env.NODE_ENV === "production") throw new Error("Mock billing is not allowed in production. Set PADDLE_API_KEY.");
-      return new MockBillingProvider(store);
+      return new MockBillingProvider();
     default:
       throw new Error(`Unknown BILLING_PROVIDER "${choice}". Use "paddle" or "mock".`);
   }

@@ -2,24 +2,20 @@
 
 export type SubscriptionStatus = "active" | "trialing" | "past_due" | "paused" | "canceled";
 
-/** What we keep about a user's subscription, whoever the provider is. */
-export interface Subscription {
-  userRef: string;
-  provider: string;
-  subscriptionId: string;
-  customerId: string;
-  planId: string | null;
-  status: SubscriptionStatus;
-  /** End of the period already paid for (ISO date), if the provider gave one. */
-  currentPeriodEnd: string | null;
-  updatedAt: string;
-}
-
-/** A verified webhook, normalised. Events we don't act on come back as null. */
+/** A verified webhook about a subscription, normalised. userRef is our users.id. */
 export interface SubscriptionEvent {
   eventId: string;
   occurredAt: string;
-  subscription: Omit<Subscription, "updatedAt">;
+  subscription: {
+    userRef: string;
+    provider: string;
+    subscriptionId: string;
+    customerId: string;
+    planId: string | null;
+    status: SubscriptionStatus;
+    /** End of the period already paid for (ISO date), if the provider gave one. */
+    currentPeriodEnd: string | null;
+  };
 }
 
 export interface CheckoutRequest {
@@ -35,6 +31,8 @@ export interface BillingProvider {
   readonly name: string;
   /** Starts a checkout and returns the URL to send the candidate to. */
   createCheckout(request: CheckoutRequest): Promise<{ url: string }>;
+  /** Ends a subscription now (used when the user deletes their account). */
+  cancelSubscription(subscriptionId: string): Promise<void>;
   /** Link to the provider's self-serve page (update card, cancel, invoices). */
   createPortalLink(customerId: string): Promise<{ url: string }>;
   /** Verifies the signature and parses the body. Throws BillingError("invalid_signature") on a bad signature. */
