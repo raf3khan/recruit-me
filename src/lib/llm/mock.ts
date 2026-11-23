@@ -75,7 +75,7 @@ function mockTailor(profile: CandidateProfile, analysis: JobAnalysis): TailoredR
     skills: profile.skills.slice(0, 15),
     coverage: [],
     gaps: [],
-    adviceAr: ["هذي نسخة تجريبية بدون ذكاء اصطناعي. شغّل مفتاح الـ API عشان تطلع لك نسخة مفصّلة على الوظيفة."],
+    adviceAr: ["هذي نسخة تجريبية بدون ذكاء اصطناعي، فهي مو مفصّلة على الوظيفة بعد."],
   };
 }
 
