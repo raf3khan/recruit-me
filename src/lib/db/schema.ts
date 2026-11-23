@@ -143,7 +143,34 @@ export const applications = pgTable(
   (t) => [uniqueIndex("applications_job_idx").on(t.jobId), index("applications_user_idx").on(t.userId, t.sentAt)],
 );
 
+export const subscriptionStatus = pgEnum("subscription_status", ["active", "trialing", "past_due", "paused", "canceled"]);
+
+/**
+ * The user's subscription with the billing provider (Paddle today). Written only
+ * from verified webhooks; users.plan is kept in step with it.
+ */
+export const subscriptions = pgTable(
+  "subscriptions",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    provider: text("provider").notNull(),
+    subscriptionId: text("subscription_id").notNull(),
+    customerId: text("customer_id").notNull(),
+    planId: text("plan_id"),
+    status: subscriptionStatus("status").notNull(),
+    currentPeriodEnd: timestamp("current_period_end", { withTimezone: true }),
+    /** occurred_at of the last event applied, so late or repeated events are skipped. */
+    lastEventAt: timestamp("last_event_at", { withTimezone: true }).notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("subscriptions_provider_sub_idx").on(t.provider, t.subscriptionId), index("subscriptions_user_idx").on(t.userId)],
+);
+
 export type User = typeof users.$inferSelect;
+export type Subscription = typeof subscriptions.$inferSelect;
 export type Job = typeof jobs.$inferSelect;
 export type Pack = typeof packs.$inferSelect;
 export type Application = typeof applications.$inferSelect;

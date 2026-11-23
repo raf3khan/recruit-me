@@ -1,5 +1,6 @@
 import { Logo } from "@/components/page";
 import { LangSwitch } from "@/components/lang-switch";
+import { LegalLinks } from "@/components/legal";
 import { isLang } from "@/lib/i18n";
 import { SignupForm } from "./signup-form";
 
@@ -15,6 +16,7 @@ export default async function Signup({ params }: PageProps<"/[lang]/signup">) {
           <LangSwitch lang={lang} />
         </div>
         <SignupForm lang={lang} />
+        <LegalLinks lang={lang} />
       </div>
     </div>
   );

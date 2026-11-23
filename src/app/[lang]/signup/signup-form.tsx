@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
 import { Icon } from "@/components/icon";
 import { translator, type Lang } from "@/lib/i18n";
@@ -35,9 +36,16 @@ export function SignupForm({ lang }: { lang: Lang }) {
         <label className="small" style={{ display: "flex", gap: ".5rem", alignItems: "flex-start" }}>
           <input type="checkbox" name="agree" required style={{ marginTop: ".3rem" }} />
           <span>
-            {t(
-              "I agree to the terms and privacy policy, including processing my CV to prepare applications.",
-              "أوافق على الشروط وسياسة الخصوصية، ومنها معالجة سيرتي الذاتية لتجهيز التقديمات.",
+            {lang === "en" ? (
+              <>
+                I agree to the <Link href="/en/terms" target="_blank">terms</Link> and{" "}
+                <Link href="/en/privacy" target="_blank">privacy policy</Link>, including processing my CV to prepare applications.
+              </>
+            ) : (
+              <>
+                أوافق على <Link href="/ar/terms" target="_blank">الشروط</Link> و
+                <Link href="/ar/privacy" target="_blank">سياسة الخصوصية</Link>، ومنها معالجة سيرتي الذاتية لتجهيز التقديمات.
+              </>
             )}
           </span>
         </label>
