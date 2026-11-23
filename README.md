@@ -84,3 +84,24 @@ Every intervention is shown to the candidate as a warning.
 ## Not in this step
 
 The job feed, the overnight queue, real SMS and payments, PDF/Word CV upload (paste text for now), the chat with the assistant, email outreach, and Arabic-language documents.
+
+## Billing (Paddle)
+
+Paddle is the merchant of record: it sells Plus to the user and charges and pays GCC VAT. The code talks to a
+`BillingProvider` interface (`src/lib/billing`), so Tap can be added later for mada, STC Pay, KNET and Benefit.
+
+- Plans page: "Subscribe" runs `checkoutAction`, which creates a Paddle transaction tagged with the user id and
+  sends them to `/ar/pay?_ptxn=...`, where Paddle.js opens the overlay checkout (full screen on phones, Apple Pay in Safari).
+- `POST /api/billing/webhook` verifies `Paddle-Signature`, stores the subscription (`subscriptions` table) and sets
+  `users.plan` to `plus` (active, trialing, past_due) or `free`. Late or repeated events are skipped.
+- "Manage subscription" opens Paddle's customer portal. Deleting an account cancels the subscription first.
+- Without `PADDLE_API_KEY`, development uses mock billing: checkout switches you to Plus at once.
+
+Paddle dashboard: create the product and prices, an API key and a client-side token; set the default payment link to
+`https://<domain>/ar/pay`; add a webhook to `https://<domain>/api/billing/webhook` for `subscription.*` events. Copy
+everything into the variables in `.env.example`.
+
+## Legal pages
+
+`/ar|en/terms`, `/privacy` and `/refunds` are public and linked from sign-up. The text is a draft in
+`src/lib/legal/content.ts`; set the `LEGAL_*` variables and have a lawyer review it before launch.

@@ -1,6 +1,6 @@
 import { and, desc, eq } from "drizzle-orm";
 import type { Db } from "@/lib/db";
-import { applications, consents, jobs, packs, users, type Application, type Job, type Pack, type Preferences, type User } from "@/lib/db/schema";
+import { applications, consents, jobs, packs, users, type Application, type Job, type Pack, type Preferences, type User, subscriptions } from "@/lib/db/schema";
 import type { LlmProvider } from "@/lib/llm";
 import { buildApplicationPack } from "@/lib/tailoring/pipeline";
 import type { AddressForm, CandidateProfile, CoverLetter, JobPosting } from "@/lib/tailoring/schemas";
@@ -19,7 +19,8 @@ export class LimitReached extends Error {
 }
 export class NotFound extends Error {}
 
-export const TERMS_VERSION = "2026-11-draft";
+export { LEGAL_VERSION as TERMS_VERSION } from "@/lib/legal/operator";
+import { LEGAL_VERSION as TERMS_VERSION } from "@/lib/legal/operator";
 
 export async function recordConsent(db: Db, userId: string) {
   await db.insert(consents).values([
@@ -186,11 +187,12 @@ export async function setPlan(db: Db, user: User, plan: User["plan"]) {
 
 /** Everything we hold about the user, for "Download my data" (PDPL right of access). */
 export async function exportData(db: Db, user: User) {
-  const [userJobs, userPacks, userApps, userConsents] = await Promise.all([
+  const [userJobs, userPacks, userApps, userConsents, userSubs] = await Promise.all([
     db.select().from(jobs).where(eq(jobs.userId, user.id)),
     db.select().from(packs).where(eq(packs.userId, user.id)),
     db.select().from(applications).where(eq(applications.userId, user.id)),
     db.select().from(consents).where(eq(consents.userId, user.id)),
+    db.select().from(subscriptions).where(eq(subscriptions.userId, user.id)),
   ]);
   return {
     exportedAt: new Date().toISOString(),
@@ -208,6 +210,7 @@ export async function exportData(db: Db, user: User) {
     packs: userPacks,
     applications: userApps,
     consents: userConsents,
+    subscriptions: userSubs,
   };
 }
 

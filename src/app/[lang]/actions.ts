@@ -12,6 +12,7 @@ import { getSmsSender } from "@/lib/auth/sms";
 import * as service from "@/lib/app/service";
 import { CITIES, ROLES, SECTORS } from "@/lib/app/options";
 import { SAMPLE_JOBS } from "@/lib/app/sample-jobs";
+import { applySubscriptionEvent, getBillingProvider, latestSubscription, MockBillingProvider, plansFor } from "@/lib/billing";
 import { getDb } from "@/lib/db";
 import type { Application, Preferences, User } from "@/lib/db/schema";
 import { isLang, translator, type Lang } from "@/lib/i18n";
@@ -296,7 +297,48 @@ export async function notificationsAction(form: FormData) {
   refresh();
 }
 
-/** Payments aren't connected yet. Outside production this switches the plan so Plus can be tested. */
+// --- billing -------------------------------------------------------------------
+
+/**
+ * Starts a checkout for a Plus plan and sends the user to it. The user id goes
+ * into the checkout so the webhook can find them; nothing else from the form is trusted.
+ */
+export async function checkoutAction(form: FormData) {
+  const lang = langOf(form);
+  const user = await userOrRedirect(lang);
+  const provider = getBillingProvider();
+  const plan = plansFor(provider.name).find((p) => p.id === form.get("planId"));
+  const priceId = plan?.priceIds[provider.name];
+  if (!plan || !priceId) redirect(`/${lang}/plans?billing=unavailable`);
+  const request = { userRef: user.id, planId: plan.id, priceId, locale: lang };
+  let url: string;
+  try {
+    url = (await provider.createCheckout(request)).url;
+    if (provider instanceof MockBillingProvider) await applySubscriptionEvent(await getDb(), provider.activationEvent(request));
+  } catch (error) {
+    console.error("[billing] checkout failed:", error);
+    redirect(`/${lang}/plans?billing=error`);
+  }
+  redirect(url);
+}
+
+/** Opens the provider's page to change card, cancel or see invoices. */
+export async function manageSubscriptionAction(form: FormData) {
+  const lang = langOf(form);
+  const user = await userOrRedirect(lang);
+  const sub = await latestSubscription(await getDb(), user.id);
+  if (!sub) redirect(`/${lang}/plans`);
+  let url: string;
+  try {
+    url = (await getBillingProvider().createPortalLink(sub.customerId)).url;
+  } catch (error) {
+    console.error("[billing] portal failed:", error);
+    redirect(`/${lang}/plans?billing=error`);
+  }
+  redirect(url);
+}
+
+/** Outside production this switches the plan directly so Plus can be tested without paying. */
 export async function devSetPlanAction(form: FormData) {
   const lang = langOf(form);
   if (isProd) return;
@@ -310,6 +352,16 @@ export async function deleteAccountAction(form: FormData) {
   const user = await userOrRedirect(lang);
   if (form.get("confirm") !== "yes") return;
   const db = await getDb();
+  // Stop billing before the subscription record is deleted with the account.
+  const sub = await latestSubscription(db, user.id);
+  if (sub && sub.status !== "canceled") {
+    try {
+      await getBillingProvider().cancelSubscription(sub.subscriptionId);
+    } catch (error) {
+      console.error("[billing] cancel on account deletion failed:", error);
+      redirect(`/${lang}/account?billing=cancel-failed`);
+    }
+  }
   await service.deleteAccount(db, user);
   (await cookies()).delete(SESSION_COOKIE);
   redirect(`/${lang}/signup?deleted=1`);
